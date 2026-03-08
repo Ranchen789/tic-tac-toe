@@ -157,6 +157,22 @@
       color: #64748b;
       text-align: center;
     }
+
+    #play-again {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.7rem 2.2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      background: #1d4ed8;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      letter-spacing: 0.05em;
+      font-weight: bold;
+    }
+    #play-again:hover { background: #1e40af; transform: scale(1.04); }
   </style>
 </head>
 <body>
@@ -177,6 +193,7 @@
   </div>
 
   <div id="tomorrow"></div>
+  <button id="play-again">Play Again</button>
 
   <script>
     const WORDS = [
@@ -311,7 +328,7 @@
     const FLIP_UP     = 200;  // ms to rotate tile back up
     const TILE_GAP    = 300;  // ms between each tile's reveal
 
-    const TARGET      = getDailyWord();
+    let   TARGET      = getDailyWord();
     const STORAGE_KEY = 'wordle-' + todayStr();
 
     let guesses     = [];
@@ -327,9 +344,10 @@
     }
 
     // Build grid
-    const gridEl     = document.getElementById('grid');
-    const msgEl      = document.getElementById('message');
-    const tomorrowEl = document.getElementById('tomorrow');
+    const gridEl       = document.getElementById('grid');
+    const msgEl        = document.getElementById('message');
+    const tomorrowEl   = document.getElementById('tomorrow');
+    const playAgainBtn = document.getElementById('play-again');
 
     document.getElementById('date-display').textContent =
       new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
@@ -420,16 +438,15 @@
       revealing = true;
 
       const result = scoreGuess(guess, TARGET);
+      const won    = guess === TARGET;
+      const lost   = !won && guesses.length >= MAX_GUESSES;
+
+      // Block input immediately so no letters slip in while tiles are revealing
+      if (won || lost) gameOver = true;
 
       revealRow(row, guess, result, () => {
-        // All tiles revealed — now check result
         revealing = false;
-        const won  = guess === TARGET;
-        const lost = !won && guesses.length >= MAX_GUESSES;
-        if (won || lost) {
-          gameOver = true;
-          showEndState();
-        }
+        if (won || lost) showEndState();
         save();
       });
 
@@ -538,8 +555,42 @@
       } else {
         msgEl.textContent = `The word was ${TARGET}`;
       }
-      tomorrowEl.textContent = 'Come back tomorrow for a new word!';
+      playAgainBtn.style.display = 'inline-block';
     }
+
+    function resetGame() {
+      // Pick a new random word
+      let newWord;
+      do {
+        newWord = ANSWER_WORDS[Math.floor(Math.random() * ANSWER_WORDS.length)].toUpperCase();
+      } while (newWord === TARGET);
+      TARGET = newWord;
+
+      guesses      = [];
+      currentInput = '';
+      gameOver     = false;
+      revealing    = false;
+
+      // Clear all tiles
+      tileEls.forEach(row => row.forEach(tile => {
+        tile.textContent = '';
+        tile.className = 'tile';
+      }));
+
+      // Reset keyboard
+      document.querySelectorAll('.key').forEach(key => {
+        key.classList.remove('correct', 'present', 'absent');
+        delete key.dataset.state;
+      });
+
+      msgEl.textContent        = '';
+      tomorrowEl.textContent   = '';
+      playAgainBtn.style.display = 'none';
+
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    playAgainBtn.addEventListener('click', resetGame);
 
     function save() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ guesses, gameOver }));
