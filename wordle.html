@@ -335,6 +335,7 @@
     let currentInput = '';
     let gameOver    = false;
     let revealing   = false;  // block input during reveal animation
+    let generation  = 0;      // incremented on reset to cancel stale callbacks
 
     // Restore
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
@@ -455,23 +456,24 @@
 
     // Animate reveal of one row, call onDone after last tile finishes
     function revealRow(row, guess, result, onDone) {
+      const gen = generation; // capture — if generation changes, this game was reset
+
       result.forEach((state, col) => {
         const tile = tileEls[row][col];
 
         setTimeout(() => {
-          // Phase 1: rotate tile away
+          if (generation !== gen) return; // reset happened, bail
           tile.classList.add('flip-hide');
 
-          // Wait for rotation-down to complete, then swap content and rotate back
           tile.addEventListener('transitionend', function onFlipDown(e) {
             if (e.propertyName !== 'transform') return;
             tile.removeEventListener('transitionend', onFlipDown);
+            if (generation !== gen) return; // reset happened, bail
 
             tile.textContent = guess[col];
             tile.classList.remove('filled', 'flip-hide');
             tile.classList.add(state);
             updateKey(guess[col], state);
-            // tile now transitions back to rotateX(0deg) automatically
           });
 
         }, col * TILE_GAP);
@@ -479,7 +481,10 @@
 
       // Call onDone after the last tile has fully flipped back up
       const totalMs = (WORD_LEN - 1) * TILE_GAP + FLIP_DOWN + FLIP_UP + 50;
-      setTimeout(onDone, totalMs);
+      setTimeout(() => {
+        if (generation !== gen) return; // reset happened, bail
+        onDone();
+      }, totalMs);
     }
 
     // Show a guess row instantly (used when restoring from localStorage)
@@ -559,6 +564,8 @@
     }
 
     function resetGame() {
+      generation++; // invalidates all pending transitionend and setTimeout callbacks
+
       // Pick a new random word
       let newWord;
       do {
