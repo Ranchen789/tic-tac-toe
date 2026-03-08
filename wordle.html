@@ -436,8 +436,6 @@
 
     // Animate reveal of one row, call onDone after last tile finishes
     function revealRow(row, guess, result, onDone) {
-      let revealed = 0;
-
       result.forEach((state, col) => {
         const tile = tileEls[row][col];
 
@@ -445,27 +443,24 @@
           // Phase 1: rotate tile away
           tile.classList.add('flip-hide');
 
-          // Wait for the rotation-down transition to fully complete
+          // Wait for rotation-down to complete, then swap content and rotate back
           tile.addEventListener('transitionend', function onFlipDown(e) {
             if (e.propertyName !== 'transform') return;
             tile.removeEventListener('transitionend', onFlipDown);
 
-            // Apply color and letter while tile is edge-on (invisible)
             tile.textContent = guess[col];
             tile.classList.remove('filled', 'flip-hide');
             tile.classList.add(state);
             updateKey(guess[col], state);
-
-            // Phase 2: wait for rotation-back transition to complete
-            tile.addEventListener('transitionend', function onFlipUp(e) {
-              if (e.propertyName !== 'transform') return;
-              tile.removeEventListener('transitionend', onFlipUp);
-              if (++revealed === WORD_LEN) onDone();
-            });
+            // tile now transitions back to rotateX(0deg) automatically
           });
 
         }, col * TILE_GAP);
       });
+
+      // Call onDone after the last tile has fully flipped back up
+      const totalMs = (WORD_LEN - 1) * TILE_GAP + FLIP_DOWN + FLIP_UP + 50;
+      setTimeout(onDone, totalMs);
     }
 
     // Show a guess row instantly (used when restoring from localStorage)
