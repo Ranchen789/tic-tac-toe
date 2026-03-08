@@ -86,6 +86,7 @@
       font-weight: bold;
       text-transform: uppercase;
       background: #16213e;
+      transform: rotateX(0deg);
       transition: transform 0.2s ease;
     }
 
@@ -435,28 +436,33 @@
 
     // Animate reveal of one row, call onDone after last tile finishes
     function revealRow(row, guess, result, onDone) {
+      let revealed = 0;
+
       result.forEach((state, col) => {
         const tile = tileEls[row][col];
 
         setTimeout(() => {
-          // Phase 1: rotate tile away (face becomes hidden)
+          // Phase 1: rotate tile away
           tile.classList.add('flip-hide');
 
-          setTimeout(() => {
-            // Midpoint: apply color and letter while hidden, then rotate back
+          // Wait for the rotation-down transition to fully complete
+          tile.addEventListener('transitionend', function onFlipDown(e) {
+            if (e.propertyName !== 'transform') return;
+            tile.removeEventListener('transitionend', onFlipDown);
+
+            // Apply color and letter while tile is edge-on (invisible)
             tile.textContent = guess[col];
-            tile.classList.remove('filled');
+            tile.classList.remove('filled', 'flip-hide');
             tile.classList.add(state);
             updateKey(guess[col], state);
 
-            // Phase 2: rotate tile back into view
-            tile.classList.remove('flip-hide');
-
-            // After the last tile fully returns, call onDone
-            if (col === WORD_LEN - 1) {
-              setTimeout(onDone, FLIP_UP);
-            }
-          }, FLIP_DOWN);
+            // Phase 2: wait for rotation-back transition to complete
+            tile.addEventListener('transitionend', function onFlipUp(e) {
+              if (e.propertyName !== 'transform') return;
+              tile.removeEventListener('transitionend', onFlipUp);
+              if (++revealed === WORD_LEN) onDone();
+            });
+          });
 
         }, col * TILE_GAP);
       });
